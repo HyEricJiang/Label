@@ -1,0 +1,38 @@
+function labelThankYouLettersOnly() {
+  const labelName = "需寄出感謝函";
+  const label = GmailApp.getUserLabelByName(labelName) || GmailApp.createLabel(labelName);
+  const threads = GmailApp.search('subject:面試通知 newer_than:30d');
+  const now = new Date();
+  const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+
+  const dateRegex = /(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})\s+(上午|下午)\s+(\d{1,2}):(\d{2})/;
+
+  threads.forEach(thread => {
+    // 如果已有標籤則跳過
+    const hasLabel = thread.getLabels().some(l => l.getName() === labelName);
+    if (hasLabel) return;
+
+    const messages = thread.getMessages();
+    for (const msg of messages) {
+      const body = msg.getPlainBody();
+
+      // 嘗試找出信中是否有面試日期
+      const dateMatch = body.match(dateRegex);
+      if (!dateMatch) continue;
+
+      const [_, year, month, day, period, hour, minute] = dateMatch;
+      let h = parseInt(hour, 10);
+      if (period === "下午" && h < 12) h += 12;
+      if (period === "上午" && h === 12) h = 0;
+
+      const interviewDate = new Date(year, month - 1, day, h, parseInt(minute, 10));
+
+      // 若超過 7 天，則加上標籤
+      if ((now - interviewDate) > sevenDaysInMs) {
+        thread.addLabel(label);
+        Logger.log(`✅ 已加上感謝函標籤：${thread.getFirstMessageSubject()}`);
+        break; // 每個 thread 處理一次即可
+      }
+    }
+  });
+}
